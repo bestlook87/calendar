@@ -1,6 +1,7 @@
 const API = {
   // 사용자가 발급받을 GAS Web App URL (임시로 빈 값, 이후 사용자가 붙여넣기)
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbytFLstMUGupfLc6cnJVBIZjGk2Wpuu3BV6Nh_abk-KwwdZQkETDx6WzEoJ3Y9tRB3STg/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbza_FCDpDA6amQt6XUomTZgigBSnxZslAZ5uQtTZ6cvSbv1PpAjIeuymjzb_HryYDS3HA/exec',
+  
   
   
   async fetchMonth(year, month) {
