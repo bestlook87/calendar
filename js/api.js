@@ -10,7 +10,12 @@ const API = {
     
     // YYYY-MM 형식
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-    const url = `${this.GAS_URL}?month=${monthStr}&key=${key}`; // <--- 이 줄을 이렇게 수정!
+    
+    // 노션 URL에서 비밀번호(key)를 추출해서 같이 보냄 (이 두 줄이 빠졌었어요!)
+    const urlParams = new URLSearchParams(window.location.search);
+    const key = urlParams.get('key') || '';
+    
+    const url = `${this.GAS_URL}?month=${monthStr}&key=${key}`;
     
     try {
       // GAS에서 CORS 우회를 허용하도록 fetch 설정 (리디렉션 지원)
