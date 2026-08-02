@@ -2,6 +2,7 @@ const API = {
   // 사용자가 발급받을 GAS Web App URL (임시로 빈 값, 이후 사용자가 붙여넣기)
   GAS_URL: 'https://script.google.com/macros/s/AKfycbytFLstMUGupfLc6cnJVBIZjGk2Wpuu3BV6Nh_abk-KwwdZQkETDx6WzEoJ3Y9tRB3STg/exec',
   
+  
   async fetchMonth(year, month) {
     if (!this.GAS_URL) {
       throw new Error('Google Apps Script URL이 설정되지 않았습니다. api.js에 URL을 입력해주세요.');
