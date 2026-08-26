@@ -62,21 +62,23 @@ const Calendar = {
     const isThisMonth = (today.getFullYear() === this.currentYear && today.getMonth() === this.currentMonth - 1);
     const todayDate = today.getDate();
     
-    // Build flat array of all dates in the grid
     const allDates = [];
     
+    // Prev month trailing days
     for (let i = startDay - 1; i >= 0; i--) {
       const dateNum = daysInPrevMonth - i;
       const d = new Date(this.currentYear, this.currentMonth - 2, dateNum);
       allDates.push({ date: d, isCurrentMonth: false, isToday: false });
     }
     
+    // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
       const isToday = isThisMonth && i === todayDate;
       const d = new Date(this.currentYear, this.currentMonth - 1, i);
       allDates.push({ date: d, isCurrentMonth: true, isToday });
     }
     
+    // Next month leading days
     const totalCells = startDay + daysInMonth;
     const remainingCells = (7 - (totalCells % 7)) % 7;
     const targetGridSize = totalCells + remainingCells <= 35 ? 35 : 42;
@@ -87,61 +89,61 @@ const Calendar = {
       allDates.push({ date: d, isCurrentMonth: false, isToday: false });
     }
     
-    // Get all filtered multi-day events
-    const multiDayEvents = this._getFilteredMultiDayEvents();
+    const allEvents = this._getFilteredAllEvents();
     
-    // Process each week
     const totalWeeks = allDates.length / 7;
     for (let w = 0; w < totalWeeks; w++) {
       const weekDates = allDates.slice(w * 7, w * 7 + 7);
       const weekStartStr = this._formatDateString(weekDates[0].date);
       const weekEndStr = this._formatDateString(weekDates[6].date);
       
-      // Find multi-day events that overlap this week
-      const weekMultiDay = multiDayEvents.filter(e => {
-        return e.startDate <= weekEndStr && e.endDate >= weekStartStr;
+      const weekEvents = allEvents.filter(e => {
+        const isMulti = e.isMultiDay && e.endDate;
+        const start = e.startDate;
+        const end = isMulti ? e.endDate : e.startDate;
+        return start <= weekEndStr && end >= weekStartStr;
       });
       
-      // Assign vertical slots
-      const slotAssignments = this._assignSlots(weekMultiDay, weekStartStr, weekEndStr, weekDates);
-      const maxSlots = slotAssignments.length > 0 ? Math.max(...slotAssignments.map(a => a.slot)) + 1 : 0;
+      const slotAssignments = this._assignSlotsUnified(weekEvents, weekStartStr, weekEndStr, weekDates);
       
-      // Create week container
       const weekRow = document.createElement('div');
-      weekRow.className = 'week-row';
+      weekRow.className = 'week-row-grid';
       
-      // Multi-day event layer
-      if (maxSlots > 0) {
-        const multiLayer = document.createElement('div');
-        multiLayer.className = 'multiday-layer';
-        multiLayer.style.gridTemplateRows = `repeat(${maxSlots}, 20px)`;
+      // 1. Background Cells & Date Headers
+      weekDates.forEach((dateInfo, colIndex) => {
+        const bgCell = document.createElement('div');
+        bgCell.className = 'bg-cell';
+        if (!dateInfo.isCurrentMonth) bgCell.classList.add('other-month');
+        bgCell.style.gridColumn = colIndex + 1;
+        bgCell.style.gridRow = '1 / -1'; // Spans all rows in the week
+        weekRow.appendChild(bgCell);
         
-        slotAssignments.forEach(assignment => {
-          const bar = this._renderMultiDayBar(assignment, weekDates);
-          multiLayer.appendChild(bar);
-        });
+        const dateHeader = document.createElement('div');
+        dateHeader.className = 'date-header';
+        dateHeader.style.gridColumn = colIndex + 1;
+        dateHeader.style.gridRow = '1';
         
-        weekRow.appendChild(multiLayer);
-      }
-      
-      // Day cells row
-      const daysRow = document.createElement('div');
-      daysRow.className = 'days-row';
-      
-      weekDates.forEach(dateInfo => {
-        const dateStr = this._formatDateString(dateInfo.date);
-        const singleDayEvents = this._getSingleDayEventsForDate(dateStr);
-        this._appendDateCell(daysRow, dateInfo.date, dateInfo.isCurrentMonth, dateInfo.isToday, singleDayEvents);
+        const dateNumber = document.createElement('span');
+        dateNumber.className = 'date-number';
+        if (dateInfo.isToday) dateNumber.classList.add('today');
+        dateNumber.textContent = dateInfo.date.getDate();
+        
+        dateHeader.appendChild(dateNumber);
+        weekRow.appendChild(dateHeader);
       });
       
-      weekRow.appendChild(daysRow);
+      // 2. Events
+      slotAssignments.forEach(assignment => {
+        const eventEl = this._renderUnifiedEvent(assignment);
+        weekRow.appendChild(eventEl);
+      });
+      
       grid.appendChild(weekRow);
     }
   },
   
-  _getFilteredMultiDayEvents() {
+  _getFilteredAllEvents() {
     return this.events.filter(e => {
-      if (!e.isMultiDay || !e.endDate) return false;
       if (!Categories.isActive(e.category)) return false;
       if (this.searchTerm) {
         const term = this.searchTerm.toLowerCase();
@@ -153,22 +155,41 @@ const Calendar = {
     });
   },
   
-  _assignSlots(events, weekStartStr, weekEndStr, weekDates) {
+  _assignSlotsUnified(events, weekStartStr, weekEndStr, weekDates) {
     if (events.length === 0) return [];
     
+    // Sort logic
     const sorted = [...events].sort((a, b) => {
+      const aIsMulti = a.isMultiDay && a.endDate;
+      const bIsMulti = b.isMultiDay && b.endDate;
+      
+      // 1. Multi-day first
+      if (aIsMulti !== bIsMulti) return aIsMulti ? -1 : 1;
+      
+      // 2. Earlier start date first
       if (a.startDate !== b.startDate) return a.startDate < b.startDate ? -1 : 1;
-      const aDur = this._daysBetween(a.startDate, a.endDate);
-      const bDur = this._daysBetween(b.startDate, b.endDate);
-      return bDur - aDur;
+      
+      // 3. Longer duration first
+      const aDur = aIsMulti ? this._daysBetween(a.startDate, a.endDate) : 1;
+      const bDur = bIsMulti ? this._daysBetween(b.startDate, b.endDate) : 1;
+      if (aDur !== bDur) return bDur - aDur;
+      
+      // 4. Earlier start time for single day
+      if (!aIsMulti && !bIsMulti) {
+        const aTime = a.startTime || '24:00';
+        const bTime = b.startTime || '24:00';
+        if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+      }
+      return 0;
     });
     
     const slotOccupancy = [];
     const assignments = [];
     
     sorted.forEach(event => {
+      const isMulti = event.isMultiDay && event.endDate;
       const clampedStart = event.startDate < weekStartStr ? weekStartStr : event.startDate;
-      const clampedEnd = event.endDate > weekEndStr ? weekEndStr : event.endDate;
+      const clampedEnd = isMulti ? (event.endDate > weekEndStr ? weekEndStr : event.endDate) : clampedStart;
       
       const startCol = this._dateToColumnIndex(clampedStart, weekDates);
       const endCol = this._dateToColumnIndex(clampedEnd, weekDates);
@@ -178,7 +199,6 @@ const Calendar = {
       let slot = 0;
       while (true) {
         if (!slotOccupancy[slot]) slotOccupancy[slot] = new Set();
-        
         let available = true;
         for (let c = startCol; c <= endCol; c++) {
           if (slotOccupancy[slot].has(c)) { available = false; break; }
@@ -195,7 +215,8 @@ const Calendar = {
       assignments.push({
         event, slot, startCol, endCol,
         isStartClamped: event.startDate < weekStartStr,
-        isEndClamped: event.endDate > weekEndStr
+        isEndClamped: isMulti && event.endDate > weekEndStr,
+        isMulti
       });
     });
     
@@ -215,77 +236,29 @@ const Calendar = {
     return Math.round((e - s) / (1000 * 60 * 60 * 24));
   },
   
-  _renderMultiDayBar(assignment, weekDates) {
-    const { event, slot, startCol, endCol, isStartClamped, isEndClamped } = assignment;
+  _renderUnifiedEvent(assignment) {
+    const { event, slot, startCol, endCol, isStartClamped, isEndClamped, isMulti } = assignment;
     const span = endCol - startCol + 1;
     
-    const bar = document.createElement('div');
-    bar.className = 'multiday-bar';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'event-wrapper';
+    wrapper.style.gridColumn = `${startCol + 1} / span ${span}`;
+    wrapper.style.gridRow = `${slot + 2}`; // Row 1 is reserved for date headers
     
-    const colors = Categories.getColor(event.category);
-    bar.style.backgroundColor = colors.bg;
-    bar.style.color = colors.text;
-    
-    bar.style.gridColumn = `${startCol + 1} / span ${span}`;
-    bar.style.gridRow = `${slot + 1}`;
-    
-    const r = '4px';
-    const f = '0px';
-    bar.style.borderRadius = `${isStartClamped ? f : r} ${isEndClamped ? f : r} ${isEndClamped ? f : r} ${isStartClamped ? f : r}`;
-    
-    let displaySubject = event.subject;
-    if (this.searchTerm) {
-      const regex = new RegExp(`(${this.searchTerm})`, 'gi');
-      displaySubject = displaySubject.replace(regex, '<span class="search-highlight">$1</span>');
-    }
-    
-    bar.innerHTML = `<span class="event-subject">${displaySubject}</span>`;
-    
-    bar.addEventListener('click', () => {
-      Modal.openEvent(event);
-    });
-    
-    return bar;
-  },
-  
-  _appendDateCell(container, dateObj, isCurrentMonth, isToday, events) {
-    const cell = document.createElement('div');
-    cell.className = 'date-cell';
-    
-    if (!isCurrentMonth) cell.classList.add('other-month');
-    
-    const dayOfWeek = dateObj.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) cell.classList.add('weekend');
-    
-    const dateHeader = document.createElement('div');
-    dateHeader.className = 'date-header';
-    
-    const dateNumber = document.createElement('span');
-    dateNumber.className = 'date-number';
-    if (isToday) dateNumber.classList.add('today');
-    dateNumber.textContent = dateObj.getDate();
-    
-    dateHeader.appendChild(dateNumber);
-    cell.appendChild(dateHeader);
-    
-    const eventsContainer = document.createElement('div');
-    eventsContainer.className = 'events-container';
-    
-    events.forEach(evt => {
-      eventsContainer.appendChild(this._renderEventCard(evt));
-    });
-    
-    cell.appendChild(eventsContainer);
-    container.appendChild(cell);
-  },
-  
-  _renderEventCard(event) {
     const card = document.createElement('div');
-    card.className = 'event-card';
+    card.className = isMulti ? 'event-card multiday' : 'event-card single-day';
     
     const colors = Categories.getColor(event.category);
     card.style.backgroundColor = colors.bg;
     card.style.color = colors.text;
+    
+    if (isMulti) {
+      const r = '4px';
+      const f = '0px';
+      card.style.borderRadius = `${isStartClamped ? f : r} ${isEndClamped ? f : r} ${isEndClamped ? f : r} ${isStartClamped ? f : r}`;
+    } else {
+      card.style.borderRadius = '4px';
+    }
     
     let displaySubject = event.subject;
     if (this.searchTerm) {
@@ -294,7 +267,7 @@ const Calendar = {
     }
     
     let timeText = '';
-    if (!event.isAllDay && event.startTime) {
+    if (!isMulti && !event.isAllDay && event.startTime) {
       timeText = `<span class="event-time">${event.startTime}</span> `;
     }
     
@@ -304,25 +277,8 @@ const Calendar = {
       Modal.openEvent(event);
     });
     
-    return card;
-  },
-  
-  _getSingleDayEventsForDate(dateStr) {
-    return this.events.filter(e => {
-      if (!Categories.isActive(e.category)) return false;
-      
-      if (this.searchTerm) {
-        const term = this.searchTerm.toLowerCase();
-        const matchesSubject = e.subject.toLowerCase().includes(term);
-        const matchesDesc = (e.description || '').toLowerCase().includes(term);
-        if (!matchesSubject && !matchesDesc) return false;
-      }
-      
-      // Only single-day events (multi-day rendered as bars above)
-      if (e.isMultiDay && e.endDate) return false;
-      
-      return dateStr === e.startDate;
-    });
+    wrapper.appendChild(card);
+    return wrapper;
   },
   
   _formatDateString(dateObj) {

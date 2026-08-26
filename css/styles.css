@@ -345,98 +345,65 @@ main {
   grid-template-columns: repeat(7, 1fr);
 }
 
-/* Week row: contains optional multiday-layer + days-row */
-.week-row {
+/* Unified Week Row */
+.week-row-grid {
   grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Multi-day event spanning layer */
-.multiday-layer {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  /* grid-template-rows set dynamically by JS */
-  gap: 2px 1px;
-  padding: 2px 0;
-  background: var(--bg-secondary);
+  grid-auto-rows: min-content;
   border-bottom: 1px solid var(--border);
-}
-
-.multiday-bar {
-  font-size: 0.7rem;
-  font-weight: 500;
-  padding: 2px 6px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.multiday-bar:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px var(--shadow);
-  z-index: 5;
   position: relative;
 }
-
-/* Days row: 7 equal-width date cells */
-.days-row {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background-color: var(--border);
+.week-row-grid:last-child {
+  border-bottom: none;
 }
 
+/* Background Cells */
+.bg-cell {
+  grid-row: 1 / -1;
+  border-right: 1px solid var(--border);
+  background: var(--bg-primary);
+  min-height: 120px;
+  transition: background-color 0.2s ease;
+}
+.bg-cell:nth-child(7) {
+  border-right: none;
+}
+.bg-cell.other-month {
+  background: var(--bg-tertiary);
+}
+.bg-cell:hover {
+  background: var(--bg-secondary);
+}
+
+/* Day Headers */
 .day-header {
   background: var(--bg-secondary);
   padding: 12px;
   text-align: center;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--text-secondary);
-  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
-
 .day-header.weekend {
-  color: var(--accent);
-}
-.day-header.weekend:last-child {
-  color: #e24b4b; /* Sunday red */
-}
-
-.date-cell {
-  background: var(--bg-primary);
-  min-height: 120px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: background-color 0.2s ease;
-  position: relative;
-  min-width: 0;
-}
-
-.date-cell:hover {
-  background: var(--bg-secondary);
-}
-
-.date-cell.other-month {
-  background: var(--bg-tertiary);
-}
-
-.date-cell.other-month .date-number {
   color: var(--text-tertiary);
+}
+.day-header:nth-child(7) {
+  border-right: none;
+}
+
+/* Date Numbers */
+.date-header {
+  grid-row: 1;
+  padding: 6px 8px 2px 8px;
+  pointer-events: none; /* Let hover hit the bg-cell */
+  display: flex;
 }
 
 .date-number {
   font-size: 0.95rem;
   font-weight: 500;
-  margin-bottom: 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -445,20 +412,25 @@ main {
   border-radius: 50%;
 }
 
-.date-cell.today .date-number {
+.date-number.today {
   background: var(--accent);
   color: #fff;
   font-weight: 700;
 }
 
+.other-month .date-number {
+  color: var(--text-tertiary);
+}
+
 /* Event Cards */
+.event-wrapper {
+  z-index: 2;
+  padding: 1px 4px;
+  min-width: 0;
+}
+
 .event-card {
   font-size: 0.75rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   font-weight: 500;
@@ -878,15 +850,18 @@ main {
     min-width: 100px;
   }
 
-  .date-cell {
-    min-height: 80px;
-    padding: 4px;
+  .bg-cell {
+    min-height: 90px;
   }
 
   .date-number {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     width: 22px;
     height: 22px;
+  }
+
+  .event-wrapper {
+    padding: 1px 2px;
   }
 
   .event-card {
@@ -898,23 +873,13 @@ main {
     font-size: 0.6rem;
   }
 
-  .calendar-header-day {
+  .day-header {
     padding: 8px 4px;
     font-size: 0.75rem;
   }
 
   main {
     padding: 12px 8px;
-  }
-
-  .multiday-bar {
-    font-size: 0.6rem;
-    padding: 1px 4px;
-  }
-
-  .multiday-layer {
-    gap: 1px 1px;
-    padding: 1px 0;
   }
 }
 
@@ -923,13 +888,12 @@ main {
     display: none;
   }
 
-  .date-cell {
-    min-height: 60px;
-    padding: 2px;
+  .bg-cell {
+    min-height: 70px;
   }
 
   .date-number {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     width: 18px;
     height: 18px;
   }
@@ -940,7 +904,7 @@ main {
     gap: 2px;
   }
 
-  .calendar-header-day {
+  .day-header {
     padding: 6px 2px;
     font-size: 0.7rem;
   }
@@ -948,10 +912,4 @@ main {
   main {
     padding: 8px 4px;
   }
-
-  .multiday-bar {
-    font-size: 0.55rem;
-    padding: 1px 2px;
-  }
 }
-
