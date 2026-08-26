@@ -336,7 +336,7 @@ main {
 }
 
 .calendar-grid {
-  background-color: var(--border);
+  background-color: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;

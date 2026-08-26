@@ -106,8 +106,18 @@ const Calendar = {
       
       const slotAssignments = this._assignSlotsUnified(weekEvents, weekStartStr, weekEndStr, weekDates);
       
+      const maxSlots = slotAssignments.length > 0 ? Math.max(...slotAssignments.map(a => a.slot)) + 1 : 0;
+      
       const weekRow = document.createElement('div');
       weekRow.className = 'week-row-grid';
+      
+      // 명시적으로 행(Row) 개수를 정의하여 배경(bg-cell)이 끝까지 늘어나도록 함
+      let rowTemplate = 'max-content'; // 1행: 날짜 숫자
+      for (let i = 0; i < maxSlots; i++) {
+        rowTemplate += ' min-content'; // 2행~: 이벤트 슬롯
+      }
+      rowTemplate += ' 1fr'; // 마지막 잉여 공간
+      weekRow.style.gridTemplateRows = rowTemplate;
       
       // 1. Background Cells & Date Headers
       weekDates.forEach((dateInfo, colIndex) => {
