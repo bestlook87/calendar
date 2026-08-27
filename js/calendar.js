@@ -147,7 +147,20 @@ const Calendar = {
         const timedContainer = document.createElement('div');
         timedContainer.className = 'timed-events-container';
         timedContainer.style.gridColumn = colIndex + 1;
-        timedContainer.style.gridRow = maxSlots + 2; // 마지막 1fr 공간
+        
+        // 해당 요일(colIndex)에 존재하는 상단(종일/다중) 일정 중 가장 마지막 슬롯 번호 찾기
+        let maxSlotForCol = -1;
+        slotAssignments.forEach(assignment => {
+          if (colIndex >= assignment.startCol && colIndex <= assignment.endCol) {
+            if (assignment.slot > maxSlotForCol) {
+              maxSlotForCol = assignment.slot;
+            }
+          }
+        });
+        
+        // 해당 요일의 마지막 상단 일정 바로 아래부터 끝까지 꽉 채우도록 설정 (-1은 맨 밑까지 연장)
+        const startRow = maxSlotForCol === -1 ? 2 : maxSlotForCol + 3;
+        timedContainer.style.gridRow = `${startRow} / -1`;
         
         const dateStr = this._formatDateString(dateInfo.date);
         const dayTimedEvents = timedEvents.filter(e => e.startDate === dateStr);
