@@ -429,6 +429,13 @@ main {
   min-width: 0;
 }
 
+.timed-events-container {
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+  padding-bottom: 4px;
+}
+
 .event-card {
   font-size: 0.75rem;
   transition: transform 0.2s ease, box-shadow 0.2s ease;

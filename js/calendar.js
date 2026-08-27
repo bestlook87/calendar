@@ -104,28 +104,30 @@ const Calendar = {
         return start <= weekEndStr && end >= weekStartStr;
       });
       
-      const slotAssignments = this._assignSlotsUnified(weekEvents, weekStartStr, weekEndStr, weekDates);
+      const topEvents = weekEvents.filter(e => (e.isMultiDay && e.endDate) || e.isAllDay);
+      const timedEvents = weekEvents.filter(e => !((e.isMultiDay && e.endDate) || e.isAllDay));
+      
+      const slotAssignments = this._assignSlotsUnified(topEvents, weekStartStr, weekEndStr, weekDates);
       
       const maxSlots = slotAssignments.length > 0 ? Math.max(...slotAssignments.map(a => a.slot)) + 1 : 0;
       
       const weekRow = document.createElement('div');
       weekRow.className = 'week-row-grid';
       
-      // 명시적으로 행(Row) 개수를 정의하여 배경(bg-cell)이 끝까지 늘어나도록 함
       let rowTemplate = 'max-content'; // 1행: 날짜 숫자
       for (let i = 0; i < maxSlots; i++) {
-        rowTemplate += ' min-content'; // 2행~: 이벤트 슬롯
+        rowTemplate += ' min-content'; // 2행~: 상단 이벤트(종일/다중)
       }
-      rowTemplate += ' 1fr'; // 마지막 잉여 공간
+      rowTemplate += ' 1fr'; // 마지막 행: 하단 이벤트(시간지정 일반일정)가 빈틈없이 쌓이는 공간
       weekRow.style.gridTemplateRows = rowTemplate;
       
-      // 1. Background Cells & Date Headers
+      // 1. Background Cells, Date Headers & Timed Events
       weekDates.forEach((dateInfo, colIndex) => {
         const bgCell = document.createElement('div');
         bgCell.className = 'bg-cell';
         if (!dateInfo.isCurrentMonth) bgCell.classList.add('other-month');
         bgCell.style.gridColumn = colIndex + 1;
-        bgCell.style.gridRow = '1 / -1'; // Spans all rows in the week
+        bgCell.style.gridRow = '1 / -1';
         weekRow.appendChild(bgCell);
         
         const dateHeader = document.createElement('div');
@@ -140,9 +142,44 @@ const Calendar = {
         
         dateHeader.appendChild(dateNumber);
         weekRow.appendChild(dateHeader);
+        
+        // Timed Events Container for this day
+        const timedContainer = document.createElement('div');
+        timedContainer.className = 'timed-events-container';
+        timedContainer.style.gridColumn = colIndex + 1;
+        timedContainer.style.gridRow = maxSlots + 2; // 마지막 1fr 공간
+        
+        const dateStr = this._formatDateString(dateInfo.date);
+        const dayTimedEvents = timedEvents.filter(e => e.startDate === dateStr);
+        
+        // 시간순 정렬
+        dayTimedEvents.sort((a, b) => {
+          const aTime = a.startTime || '24:00';
+          const bTime = b.startTime || '24:00';
+          return aTime < bTime ? -1 : 1;
+        });
+        
+        // 렌더링 및 추가
+        dayTimedEvents.forEach(e => {
+          const eventEl = this._renderUnifiedEvent({
+            event: e,
+            slot: 0,
+            startCol: colIndex,
+            endCol: colIndex,
+            isStartClamped: false,
+            isEndClamped: false,
+            isMulti: false
+          });
+          // 그리드 속성을 제거하여 컨테이너 내에서 빈틈없이 쌓이게 함
+          eventEl.style.gridColumn = '';
+          eventEl.style.gridRow = '';
+          timedContainer.appendChild(eventEl);
+        });
+        
+        weekRow.appendChild(timedContainer);
       });
       
-      // 2. Events
+      // 2. Top Events (Multi-day / All-day)
       slotAssignments.forEach(assignment => {
         const eventEl = this._renderUnifiedEvent(assignment);
         weekRow.appendChild(eventEl);
