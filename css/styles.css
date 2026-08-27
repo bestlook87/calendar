@@ -471,6 +471,12 @@ main {
   width: 100%;
 }
 
+/* 상단(종일/다중) 일정은 미세한 높이 단차를 막기 위해 무조건 1줄로 고정 */
+.week-row-grid > .event-wrapper .event-subject {
+  display: block;
+  white-space: nowrap;
+}
+
 .more-events {
   font-size: 0.75rem;
   color: var(--text-secondary);
