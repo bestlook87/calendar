@@ -109,6 +109,10 @@ const App = {
     }
     
     try {
+      // 헤더의 월 표시도 즉시 업데이트 (이전 달이 보이지 않도록)
+      const monthLabel = document.getElementById('currentMonthLabel');
+      if (monthLabel) monthLabel.textContent = `${year}년 ${month}월`;
+      
       this.loadingText.textContent = `${year}년 ${month}월 동기화 중...`;
       const data = await API.fetchMonth(year, month);
       
