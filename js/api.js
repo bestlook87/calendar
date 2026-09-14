@@ -1,39 +1,54 @@
 const API = {
-  // 사용자가 발급받을 GAS Web App URL (임시로 빈 값, 이후 사용자가 붙여넣기)
   GAS_URL: 'https://script.google.com/macros/s/AKfycbza_FCDpDA6amQt6XUomTZgigBSnxZslAZ5uQtTZ6cvSbv1PpAjIeuymjzb_HryYDS3HA/exec',
-  
-  
+  API_KEY: 'assmh0808',  // 하드코딩된 API 키 (URL 파라미터 없어도 무조건 작동)
+  MAX_RETRIES: 3,
   
   async fetchMonth(year, month) {
     if (!this.GAS_URL) {
-      throw new Error('Google Apps Script URL이 설정되지 않았습니다. api.js에 URL을 입력해주세요.');
+      throw new Error('Google Apps Script URL이 설정되지 않았습니다.');
     }
     
-    // YYYY-MM 형식
     const monthStr = `${year}-${String(month).padStart(2, '0')}`;
     
-    // 노션 URL에서 비밀번호(key)를 추출해서 같이 보냄 (이 두 줄이 빠졌었어요!)
+    // URL 파라미터에서 key를 먼저 찾고, 없으면 하드코딩된 키 사용
     const urlParams = new URLSearchParams(window.location.search);
-    const key = urlParams.get('key') || '';
+    const key = urlParams.get('key') || this.API_KEY;
     
     const url = `${this.GAS_URL}?month=${monthStr}&key=${key}`;
     
-    try {
-      // GAS에서 CORS 우회를 허용하도록 fetch 설정 (리디렉션 지원)
-      const response = await fetch(url, {
-        method: 'GET',
-        mode: 'cors'
-      });
-      
-      if (!response.ok) {
-        throw new Error('데이터를 불러오는데 실패했습니다.');
+    // 재시도 로직 (네트워크 일시 장애 대비)
+    let lastError = null;
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          mode: 'cors'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: 데이터를 불러오는데 실패했습니다.`);
+        }
+        
+        const text = await response.text();
+        
+        // GAS 권한 만료 시 JSON이 아닌 텍스트가 올 수 있음
+        try {
+          const data = JSON.parse(text);
+          return data;
+        } catch (parseErr) {
+          throw new Error(`GAS 응답 파싱 실패 (권한 만료 가능성): ${text.substring(0, 100)}`);
+        }
+      } catch (error) {
+        lastError = error;
+        console.warn(`[API] 시도 ${attempt}/${this.MAX_RETRIES} 실패:`, error.message);
+        if (attempt < this.MAX_RETRIES) {
+          // 재시도 전 대기 (1초, 2초, 4초...)
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+        }
       }
-      
-      const data = await response.json();
-      return data; // { year, month, events }
-    } catch (error) {
-      console.error('API Error:', error);
-      throw error;
     }
+    
+    console.error('[API] 모든 재시도 실패:', lastError);
+    throw lastError;
   }
 };
