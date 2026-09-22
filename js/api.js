@@ -1,5 +1,5 @@
 const API = {
-  GAS_URL: 'https://script.google.com/macros/s/AKfycbza_FCDpDA6amQt6XUomTZgigBSnxZslAZ5uQtTZ6cvSbv1PpAjIeuymjzb_HryYDS3HA/exec',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbyncY1TNDmMz4md2OrYT27qF6PeDnX5Mi5cMF6fRxy3kEoOEec7Ny6-FBFkMr9vGMWzUA/exec',
   API_KEY: 'assmh0808',  // 하드코딩된 API 키 (URL 파라미터 없어도 무조건 작동)
   MAX_RETRIES: 3,
   
