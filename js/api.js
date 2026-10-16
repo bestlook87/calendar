@@ -134,7 +134,11 @@ const API = {
       return staticData;
     }
 
-    return await this._fetchFromGas(monthStr, key);
+    try {
+      return await this._fetchFromGas(monthStr, key);
+    } catch (err) {
+      return { year, month, events: [] };
+    }
   },
 
   async _fetchFromGas(monthStr, key) {

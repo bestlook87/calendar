@@ -204,15 +204,16 @@ def parse_ics_file(content: str, filename: str) -> list[dict]:
 
         instances = []
         rrule = ev.get("RRULE", "")
+        max_expand_year = datetime.datetime.now(KST).year + 5
         if rrule and "FREQ=YEARLY" in rrule and "RECURRENCE-ID" not in ev:
-            until_date = datetime.date(2028, 12, 31)
+            until_date = datetime.date(max_expand_year, 12, 31)
             m_until = re.search(r"UNTIL=(\d{4})(\d{2})(\d{2})", rrule)
             if m_until:
                 until_date = datetime.date(
                     int(m_until.group(1)), int(m_until.group(2)), int(m_until.group(3))
                 )
             start_yr = start_obj.year
-            for yr in range(max(start_yr, 2020), min(until_date.year, 2028) + 1):
+            for yr in range(max(start_yr, 2020), min(until_date.year, max_expand_year) + 1):
                 try:
                     inst_start = start_obj.replace(year=yr)
                 except ValueError:
@@ -281,7 +282,11 @@ def write_encrypted_month(yr: int, mo: int, month_events: list[dict]):
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def build_monthly_files(zip_path: str, start_year: int = 2024, end_year: int = 2027):
+def build_monthly_files(zip_path: str, start_year: int = 2024, end_year: int | None = None):
+    if end_year is None:
+        # 매년 현재 연도 기준 +3년까지 자동 확장 (해가 바뀌면 자동으로 2028, 2029, 2030... 생성)
+        end_year = datetime.datetime.now(KST).year + 3
+
     all_events = []
     with zipfile.ZipFile(zip_path, "r") as zf:
         for name in zf.namelist():
@@ -290,6 +295,15 @@ def build_monthly_files(zip_path: str, start_year: int = 2024, end_year: int = 2
             raw_bytes = zf.read(name)
             content = raw_bytes.decode("utf-8", errors="replace")
             all_events.extend(parse_ics_file(content, os.path.basename(name)))
+
+    # 만약 더 먼 미래(예: 2032년 등)에 등록된 일정이 있으면 그 해까지 자동 포함
+    for ev in all_events:
+        try:
+            ev_yr = int(ev["endDate"][:4])
+            if 2020 <= ev_yr <= 2100 and ev_yr > end_year:
+                end_year = ev_yr
+        except Exception:
+            pass
 
     total_written = 0
     for yr in range(start_year, end_year + 1):
