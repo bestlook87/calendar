@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar Test</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .test-controls {
+      position: fixed; top: 0; right: 0; z-index: 9999;
+      background: #333; color: #fff; padding: 8px; font-size: 12px; border-radius: 0 0 0 8px;
+    }
+    .test-controls button { margin: 2px; padding: 4px 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="test-controls">
+    <b>Width Test:</b>
+    <button onclick="document.querySelector('main').style.maxWidth='320px'">320px</button>
+    <button onclick="document.querySelector('main').style.maxWidth='375px'">375px</button>
+    <button onclick="document.querySelector('main').style.maxWidth='768px'">768px</button>
+    <button onclick="document.querySelector('main').style.maxWidth='100%'">Full</button>
+  </div>
+
+  <header class="header">
+    <div class="header-left"><h1>📅 Calendar Viewer</h1></div>
+    <div class="header-center">
+      <span id="currentMonthLabel" class="month-label">2026년 8월</span>
+    </div>
+    <div class="header-right">
+      <button id="searchToggle" class="icon-btn" style="display:none;">🔍</button>
+      <input type="text" id="searchInput" style="display:none;">
+      <button id="filterToggle" class="icon-btn" style="display:none;">🏷️</button>
+      <button id="themeToggleBtn" class="icon-btn" title="다크모드">🌙</button>
+      <button id="uploadNewBtn" class="icon-btn" style="display:none;">📂</button>
+    </div>
+  </header>
+
+  <div id="filterBar" class="filter-bar hidden">
+    <div id="filterContainer" class="filter-pills"></div>
+  </div>
+
+  <main>
+    <div id="loadingView" class="upload-area" style="display: none;"></div>
+    <div id="calendarView" class="calendar-container" style="display:block;">
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </div>
+  </main>
+
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <button id="modalClose" class="modal-close">✕</button>
+      <div class="modal-header">
+        <h2 id="modalTitle" class="modal-title"></h2>
+        <span id="modalCategory" class="modal-category"></span>
+      </div>
+      <div class="modal-body">
+        <div class="modal-info">
+          <div class="modal-info-item"><span class="info-icon">📅</span><span id="modalDate"></span></div>
+          <div class="modal-info-item" id="modalTimeContainer"><span class="info-icon">🕐</span><span id="modalTime"></span></div>
+          <div class="modal-info-item" id="modalLocationContainer" style="display:none;"><span class="info-icon">📍</span><span id="modalLocation"></span></div>
+        </div>
+        <div id="modalDescriptionContainer" class="modal-description">
+          <h3>📝 설명</h3><div id="modalDescription" class="description-content"></div>
+        </div>
+        <div class="modal-memo">
+          <h3>✏️ 메모</h3>
+          <textarea id="modalMemo" class="memo-textarea" placeholder="메모를 입력하세요..."></textarea>
+          <button id="saveMemoBtn" class="save-memo-btn">💾 메모 저장</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dayModalOverlay" class="modal-overlay hidden">
+    <div class="modal day-modal">
+      <button id="dayModalClose" class="modal-close">✕</button>
+      <h2 id="dayModalTitle" class="modal-title"></h2>
+      <div id="dayModalEvents" class="day-modal-events"></div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="js/categories.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/modal.js"></script>
+  <script>
+    const App = {
+      showToast(msg, type) { console.log("[" + type + "] " + msg); }
+    };
+    const API = { GAS_URL: '' };
+
+    const mockEvents = [
+      { id: '1', subject: '팀 미팅', category: 'Work', startDate: '2026-08-03', isAllDay: false, startTime: '10:00', endTime: '11:00', isMultiDay: false },
+      { id: '2', subject: '운동 - 헬스장', category: '운동', startDate: '2026-08-05', isAllDay: false, startTime: '07:00', endTime: '08:00', isMultiDay: false },
+      { id: '3', subject: '치과 예약', category: 'Life', startDate: '2026-08-07', isAllDay: false, startTime: '14:00', endTime: '15:00', isMultiDay: false },
+      { id: '4', subject: '프로젝트 마감', category: 'Work', startDate: '2026-08-15', isAllDay: false, startTime: '18:00', endTime: '18:00', isMultiDay: false },
+      { id: '5', subject: '점심 약속', category: 'Life', startDate: '2026-08-20', isAllDay: false, startTime: '12:00', endTime: '13:00', isMultiDay: false },
+      { id: '6', subject: '주식 리밸런싱', category: 'Investment', startDate: '2026-08-22', isAllDay: true, isMultiDay: false },
+      { id: '7', subject: '결혼기념일', category: 'LOVE', startDate: '2026-08-25', isAllDay: true, isMultiDay: false },
+      { id: '8', subject: '월간 회고', category: '목표', startDate: '2026-08-31', isAllDay: true, isMultiDay: false },
+      { id: '14', subject: '조깅', category: '운동', startDate: '2026-08-10', isAllDay: false, startTime: '06:30', endTime: '07:30', isMultiDay: false },
+      { id: '15', subject: '독서 모임', category: 'Life', startDate: '2026-08-16', isAllDay: false, startTime: '19:00', endTime: '21:00', isMultiDay: false },
+      { id: '16', subject: '데이트', category: 'LOVE', startDate: '2026-08-09', isAllDay: false, startTime: '18:00', endTime: '22:00', isMultiDay: false },
+      // Multi-day events
+      { id: '9', subject: '여름 휴가 🏖️', category: '일정', startDate: '2026-08-10', endDate: '2026-08-14', isAllDay: true, isMultiDay: true },
+      { id: '10', subject: '프로젝트 스프린트', category: 'Work', startDate: '2026-08-17', endDate: '2026-08-21', isAllDay: true, isMultiDay: true },
+      { id: '11', subject: '투자 컨퍼런스', category: 'Investment', startDate: '2026-08-05', endDate: '2026-08-07', isAllDay: true, isMultiDay: true },
+      { id: '12', subject: '해외 출장 ✈️', category: 'Work', startDate: '2026-08-08', endDate: '2026-08-12', isAllDay: true, isMultiDay: true },
+      { id: '13', subject: '자격증 시험 준비', category: '목표', startDate: '2026-08-18', endDate: '2026-08-20', isAllDay: true, isMultiDay: true },
+    ];
+
+    document.getElementById('modalClose').addEventListener('click', () => Modal.closeMain());
+    document.getElementById('dayModalClose').addEventListener('click', () => Modal.closeDay());
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('modalOverlay')) Modal.closeMain();
+    });
+    document.getElementById('dayModalOverlay').addEventListener('click', (e) => {
+      if (e.target === document.getElementById('dayModalOverlay')) Modal.closeDay();
+    });
+    document.getElementById('saveMemoBtn').addEventListener('click', () => Modal.saveMemo());
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      document.getElementById('themeToggleBtn').textContent = next === 'dark' ? '☀️' : '🌙';
+      Calendar.render();
+    });
+
+    Calendar.init(2026, 8, mockEvents);
+  </script>
+</body>
+</html>
