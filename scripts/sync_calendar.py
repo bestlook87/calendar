@@ -282,7 +282,7 @@ def write_encrypted_month(yr: int, mo: int, month_events: list[dict]):
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def build_monthly_files(zip_path: str, start_year: int = 2024, end_year: int | None = None):
+def build_monthly_files(zip_path: str, start_year: int = 2024, end_year=None):
     if end_year is None:
         # 매년 현재 연도 기준 +3년까지 자동 확장 (해가 바뀌면 자동으로 2028, 2029, 2030... 생성)
         end_year = datetime.datetime.now(KST).year + 3
@@ -368,17 +368,26 @@ def download_ical_via_chrome(target_zip: str) -> bool:
 
     apple_script = '''
     tell application "Google Chrome"
+        set createdWin to false
         if (count of windows) is 0 then
-            return "NO_WINDOW"
+            set w to make new window
+            set createdWin to true
+            set URL of active tab of w to "https://calendar.google.com/calendar/u/0/exporticalzip"
+            delay 6
+            try
+                close w
+            end try
+            return "OK"
+        else
+            set t to make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
+            delay 6
+            try
+                if URL of t is "about:blank" or URL of t contains "exporticalzip" or URL of t is "" then
+                    close t
+                end if
+            end try
+            return "OK"
         end if
-        set t to make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
-        delay 6
-        try
-            if URL of t is "about:blank" or URL of t contains "exporticalzip" then
-                close t
-            end if
-        end try
-        return "OK"
     end tell
     '''
     res = subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True)
