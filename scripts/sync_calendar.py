@@ -415,101 +415,134 @@ def sync_from_gas() -> bool:
     return synced_any
 
 
-def download_ical_via_chrome(target_zip: str) -> bool:
+def cleanup_downloads_dir():
+    """Remove any bestlook87 calendar export zip or crdownload files from ~/Downloads."""
     downloads_dir = os.path.expanduser("~/Downloads")
-    # Clean up any leftover files first (including (1).zip, .crdownload, etc.)
-    for old_f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*")):
+    for f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*")):
         try:
-            os.remove(old_f)
+            os.remove(f)
         except OSError:
             pass
 
-    apple_script = '''
+
+def download_ical_via_chrome(target_zip: str) -> bool:
+    cleanup_downloads_dir()
+    downloads_dir = os.path.expanduser("~/Downloads")
+    start_time = time.time()
+
+    # Open Google Calendar export URL in Chrome and obtain the created tab/window ID
+    open_script = '''
     tell application "Google Chrome"
-        set createdWin to false
         if (count of windows) is 0 then
             set w to make new window
-            set createdWin to true
-            set URL of active tab of w to "https://calendar.google.com/calendar/u/0/exporticalzip"
-            delay 5
-            try
-                close w
-            end try
-            return "OK"
+            set t to active tab of w
+            set URL of t to "https://calendar.google.com/calendar/u/0/exporticalzip"
+            return (id of w as string) & ":" & (id of t as string) & ":win"
         else
             set t to make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
-            delay 5
-            try
-                if URL of t is "about:blank" or URL of t contains "exporticalzip" or URL of t is "" then
-                    close t
-                end if
-            end try
-            return "OK"
+            return (id of front window as string) & ":" & (id of t as string) & ":tab"
         end if
     end tell
     '''
-    res = subprocess.run(["osascript", "-e", apple_script], capture_output=True, text=True)
+    res = subprocess.run(["osascript", "-e", open_script], capture_output=True, text=True)
     if res.returncode != 0:
+        with open("/tmp/calendarsync.err", "a") as f:
+            f.write(f"[ERROR] open_script failed (rc={res.returncode}):\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}\n")
         return False
 
-    for _ in range(15):
-        # Match any zip starting with bestlook87@gmail.com and ending in .zip (excluding .crdownload)
-        all_zips = [
-            f for f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.zip"))
-            if not f.endswith(".crdownload")
-        ]
-        crdownloads = glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.crdownload"))
-        if all_zips and not crdownloads:
-            latest = max(all_zips, key=os.path.getmtime)
-            if os.path.getsize(latest) > 1000:
-                shutil.move(latest, target_zip)
-                # Ensure no other leftover copy remains in Downloads
-                for extra in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*")):
-                    try:
-                        os.remove(extra)
-                    except OSError:
-                        pass
-                return True
-        time.sleep(1)
-    return False
+    info_parts = res.stdout.strip().split(":")
+    win_id = info_parts[0] if len(info_parts) > 0 else None
+    tab_id = info_parts[1] if len(info_parts) > 1 else None
+    kind = info_parts[2] if len(info_parts) > 2 else "tab"
+
+    def close_chrome_tab():
+        if not win_id or not tab_id:
+            return
+        close_script = f'''
+        tell application "Google Chrome"
+            try
+                if "{kind}" is "win" then
+                    close (window id {win_id})
+                else
+                    close (tab id {tab_id} of window id {win_id})
+                end if
+            end try
+        end tell
+        '''
+        subprocess.run(["osascript", "-e", close_script], capture_output=True)
+
+    downloaded = False
+    try:
+        # Wait up to 180 seconds (Google Calendar zip packaging can take 1-2 minutes)
+        for _ in range(180):
+            time.sleep(1)
+            all_zips = [
+                f for f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.zip"))
+                if not f.endswith(".crdownload")
+            ]
+            crdownloads = [
+                f for f in glob.glob(os.path.join(downloads_dir, "*.crdownload"))
+                if os.path.getmtime(f) >= start_time - 2
+            ]
+            if all_zips and not crdownloads:
+                latest = max(all_zips, key=os.path.getmtime)
+                if os.path.getsize(latest) > 1000:
+                    shutil.move(latest, target_zip)
+                    downloaded = True
+                    break
+        if not downloaded:
+            with open("/tmp/calendarsync.err", "a") as f:
+                f.write(f"[ERROR] download timed out after 180s. all_zips={all_zips}, crdownloads={crdownloads}\n")
+    finally:
+        close_chrome_tab()
+        cleanup_downloads_dir()
+
+    return downloaded
 
 
 def auto_sync():
-    if sync_from_ical_urls():
-        print("Synced silently via secret iCal URLs.")
-    elif sync_from_gas():
-        print("Synced latest months via GAS.")
-    else:
-        zip_path = "/tmp/ical_autosync.zip"
-        if not download_ical_via_chrome(zip_path):
-            print("Failed to sync via iCal URLs, GAS, or Chrome.")
-            return 1
-        ev_count, file_count = build_monthly_files(zip_path)
-        try:
-            os.remove(zip_path)
-        except OSError:
-            pass
-        print(f"Synced {ev_count} events into {file_count} encrypted monthly files.")
+    cleanup_downloads_dir()
+    try:
+        if sync_from_ical_urls():
+            print("Synced silently via secret iCal URLs.")
+        elif sync_from_gas():
+            print("Synced latest months via GAS.")
+        else:
+            zip_path = "/tmp/ical_autosync.zip"
+            if not download_ical_via_chrome(zip_path):
+                msg = "Failed to sync via iCal URLs, GAS, or Chrome."
+                print(msg)
+                with open("/tmp/calendarsync.err", "a") as f:
+                    f.write(f"[ERROR] {msg}\n")
+                return 1
+            ev_count, file_count = build_monthly_files(zip_path)
+            try:
+                os.remove(zip_path)
+            except OSError:
+                pass
+            print(f"Synced {ev_count} events into {file_count} encrypted monthly files.")
 
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "data/"],
-        cwd=REPO_DIR,
-        capture_output=True,
-        text=True,
-    )
-    if status.stdout.strip():
-        subprocess.run(["git", "add", "data/"], cwd=REPO_DIR, check=True)
-        now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-        subprocess.run(
-            ["git", "commit", "-m", f"chore: auto-sync encrypted calendar data ({now_str})"],
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "data/"],
             cwd=REPO_DIR,
-            check=True,
+            capture_output=True,
+            text=True,
         )
-        subprocess.run(["git", "push", "origin", "main"], cwd=REPO_DIR, check=True)
-        print("Pushed updated encrypted calendar JSON files to GitHub.")
-    else:
-        print("No calendar changes to push.")
-    return 0
+        if status.stdout.strip():
+            subprocess.run(["git", "add", "data/"], cwd=REPO_DIR, check=True)
+            now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+            subprocess.run(
+                ["git", "commit", "-m", f"chore: auto-sync encrypted calendar data ({now_str})"],
+                cwd=REPO_DIR,
+                check=True,
+            )
+            subprocess.run(["git", "push", "origin", "main"], cwd=REPO_DIR, check=True)
+            print("Pushed updated encrypted calendar JSON files to GitHub.")
+        else:
+            print("No calendar changes to push.")
+        return 0
+    finally:
+        cleanup_downloads_dir()
 
 
 if __name__ == "__main__":
