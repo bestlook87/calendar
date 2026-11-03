@@ -360,7 +360,8 @@ def sync_from_gas() -> bool:
 
 def download_ical_via_chrome(target_zip: str) -> bool:
     downloads_dir = os.path.expanduser("~/Downloads")
-    for old_f in glob.glob(os.path.join(downloads_dir, "bestlook87@gmail.com*.ical.zip")):
+    # Clean up any leftover files first (including (1).zip, .crdownload, etc.)
+    for old_f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*")):
         try:
             os.remove(old_f)
         except OSError:
@@ -373,14 +374,14 @@ def download_ical_via_chrome(target_zip: str) -> bool:
             set w to make new window
             set createdWin to true
             set URL of active tab of w to "https://calendar.google.com/calendar/u/0/exporticalzip"
-            delay 6
+            delay 5
             try
                 close w
             end try
             return "OK"
         else
             set t to make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
-            delay 6
+            delay 5
             try
                 if URL of t is "about:blank" or URL of t contains "exporticalzip" or URL of t is "" then
                     close t
@@ -394,12 +395,23 @@ def download_ical_via_chrome(target_zip: str) -> bool:
     if res.returncode != 0:
         return False
 
-    for _ in range(10):
-        matches = glob.glob(os.path.join(downloads_dir, "bestlook87@gmail.com*.ical.zip"))
-        if matches:
-            latest = max(matches, key=os.path.getmtime)
+    for _ in range(15):
+        # Match any zip starting with bestlook87@gmail.com and ending in .zip (excluding .crdownload)
+        all_zips = [
+            f for f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.zip"))
+            if not f.endswith(".crdownload")
+        ]
+        crdownloads = glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.crdownload"))
+        if all_zips and not crdownloads:
+            latest = max(all_zips, key=os.path.getmtime)
             if os.path.getsize(latest) > 1000:
                 shutil.move(latest, target_zip)
+                # Ensure no other leftover copy remains in Downloads
+                for extra in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*")):
+                    try:
+                        os.remove(extra)
+                    except OSError:
+                        pass
                 return True
         time.sleep(1)
     return False
