@@ -20,15 +20,9 @@ const App = {
     const urlParams = new URLSearchParams(window.location.search);
     const monthParam = urlParams.get('month');
     
-    // Notion 임베드용 깔끔한 뷰 (header 숨김)
+    // Notion 등 iframe 임베드 모드 (header 컴팩트 뷰 적용)
     if (urlParams.get('embed') === 'true') {
-      const header = document.querySelector('.header');
-      if (header) header.style.display = 'none';
-      
-      // 임베드 뷰일 경우 body의 마진/패딩 최소화
-      document.body.style.padding = '0';
-      const main = document.querySelector('main');
-      if (main) main.style.padding = '0';
+      document.body.classList.add('is-embed');
     }
     
     // 4. Fetch Data
@@ -79,11 +73,17 @@ const App = {
     // Month navigation buttons
     const prevMonthBtn = document.getElementById('prevMonthBtn');
     if (prevMonthBtn) {
-      prevMonthBtn.addEventListener('click', () => this.navigateMonth(-1));
+      prevMonthBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.navigateMonth(-1);
+      });
     }
     const nextMonthBtn = document.getElementById('nextMonthBtn');
     if (nextMonthBtn) {
-      nextMonthBtn.addEventListener('click', () => this.navigateMonth(1));
+      nextMonthBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.navigateMonth(1);
+      });
     }
     
     // Browser history back/forward navigation
@@ -126,10 +126,17 @@ const App = {
     
     const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     
-    // Update URL query param cleanly without full page reload
-    const url = new URL(window.location);
-    url.searchParams.set('month', targetMonthStr);
-    window.history.pushState({}, '', url);
+    // 노션 및 iframe 임베드 호환:
+    // iframe sandbox 환경에서는 window.history.pushState가 SecurityError / DOMException을 일으킬 수 있으므로 try-catch로 보호합니다.
+    try {
+      if (window.history && window.history.pushState) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('month', targetMonthStr);
+        window.history.pushState({}, '', url.toString());
+      }
+    } catch (e) {
+      console.warn('history.pushState blocked in embedded iframe:', e);
+    }
     
     this.loadData(targetMonthStr);
   },

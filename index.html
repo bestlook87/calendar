@@ -6,8 +6,11 @@
   <title>📅 CSV Calendar Viewer</title>
   <meta name="robots" content="noindex, nofollow">
   <meta name="description" content="구글 캘린더 CSV를 아름다운 월별 캘린더로 시각화">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="css/styles.css?v=13">
+  <link rel="stylesheet" href="css/styles.css?v=17">
 </head>
 <body>
   <header class="header">
@@ -15,12 +18,12 @@
       <h1>📅 Calendar Viewer</h1>
     </div>
     <div class="header-center">
-      <button id="prevMonthBtn" class="nav-btn" title="이전달" aria-label="이전달">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <button id="prevMonthBtn" type="button" class="nav-btn" title="이전달" aria-label="이전달">
+        <svg style="pointer-events: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
       <span id="currentMonthLabel" class="month-label">2026년 11월</span>
-      <button id="nextMonthBtn" class="nav-btn" title="다음달" aria-label="다음달">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <button id="nextMonthBtn" type="button" class="nav-btn" title="다음달" aria-label="다음달">
+        <svg style="pointer-events: none;" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </button>
     </div>
     <div class="header-right">
@@ -110,11 +113,11 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Scripts -->
-  <script src="js/api.js?v=16"></script>
-  <script src="js/categories.js?v=16"></script>
-  <script src="js/storage.js?v=16"></script>
-  <script src="js/calendar.js?v=16"></script>
-  <script src="js/modal.js?v=16"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/api.js?v=17"></script>
+  <script src="js/categories.js?v=17"></script>
+  <script src="js/storage.js?v=17"></script>
+  <script src="js/calendar.js?v=17"></script>
+  <script src="js/modal.js?v=17"></script>
+  <script src="js/app.js?v=17"></script>
 </body>
 </html>

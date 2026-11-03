@@ -4,6 +4,31 @@ const Storage = {
     MEMOS: 'csv-cal-memos', 
     THEME: 'csv-cal-theme' 
   },
+  _mem: {},
+
+  _getItem(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch (e) {
+      return this._mem[key] || null;
+    }
+  },
+
+  _setItem(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      this._mem[key] = value;
+    }
+  },
+
+  _removeItem(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      delete this._mem[key];
+    }
+  },
   
   saveMonth(year, month, events) {
     const key = `${this.KEYS.MONTHS}-${year}-${month}`;
@@ -22,28 +47,28 @@ const Storage = {
       return b.month - a.month;
     });
     
-    localStorage.setItem(this.KEYS.MONTHS, JSON.stringify(allMonths));
-    localStorage.setItem(key, JSON.stringify(events));
+    this._setItem(this.KEYS.MONTHS, JSON.stringify(allMonths));
+    this._setItem(key, JSON.stringify(events));
   },
   
   getMonth(year, month) {
     const key = `${this.KEYS.MONTHS}-${year}-${month}`;
-    const data = localStorage.getItem(key);
+    const data = this._getItem(key);
     return data ? JSON.parse(data) : [];
   },
   
   getAllMonths() {
-    const data = localStorage.getItem(this.KEYS.MONTHS);
+    const data = this._getItem(this.KEYS.MONTHS);
     return data ? JSON.parse(data) : [];
   },
   
   deleteMonth(year, month) {
     const key = `${this.KEYS.MONTHS}-${year}-${month}`;
-    localStorage.removeItem(key);
+    this._removeItem(key);
     
     let allMonths = this.getAllMonths();
     allMonths = allMonths.filter(m => m.year !== year || m.month !== month);
-    localStorage.setItem(this.KEYS.MONTHS, JSON.stringify(allMonths));
+    this._setItem(this.KEYS.MONTHS, JSON.stringify(allMonths));
   },
   
   saveMemo(eventId, memoText) {
@@ -53,7 +78,7 @@ const Storage = {
     } else {
       memos[eventId] = memoText;
     }
-    localStorage.setItem(this.KEYS.MEMOS, JSON.stringify(memos));
+    this._setItem(this.KEYS.MEMOS, JSON.stringify(memos));
   },
   
   getMemo(eventId) {
@@ -62,15 +87,15 @@ const Storage = {
   },
   
   getAllMemos() {
-    const data = localStorage.getItem(this.KEYS.MEMOS);
+    const data = this._getItem(this.KEYS.MEMOS);
     return data ? JSON.parse(data) : {};
   },
   
   saveTheme(theme) {
-    localStorage.setItem(this.KEYS.THEME, theme);
+    this._setItem(this.KEYS.THEME, theme);
   },
   
   getTheme() {
-    return localStorage.getItem(this.KEYS.THEME) || 'light';
+    return this._getItem(this.KEYS.THEME) || 'light';
   }
 };
