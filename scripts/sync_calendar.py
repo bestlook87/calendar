@@ -327,6 +327,63 @@ def build_monthly_files(zip_path: str, start_year: int = 2024, end_year=None):
     return len(all_events), total_written
 
 
+ICAL_URLS_FILE = os.path.expanduser("~/.calendar_ical_urls")
+
+
+def sync_from_ical_urls(start_year: int = 2024, end_year=None) -> bool:
+    """Fetch calendar directly from Google Calendar secret iCal URLs silently via HTTP."""
+    if not os.path.exists(ICAL_URLS_FILE):
+        return False
+    with open(ICAL_URLS_FILE, "r", encoding="utf-8") as f:
+        urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    if not urls:
+        return False
+
+    if end_year is None:
+        end_year = datetime.datetime.now(KST).year + 3
+
+    all_events = []
+    for idx, url in enumerate(urls, 1):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 200:
+                    content = resp.read().decode("utf-8", errors="replace")
+                    all_events.extend(parse_ics_file(content, f"feed_{idx}.ics"))
+        except Exception as e:
+            print(f"Error fetching iCal URL {idx}: {e}")
+
+    if not all_events:
+        return False
+
+    for ev in all_events:
+        try:
+            ev_yr = int(ev["endDate"][:4])
+            if 2020 <= ev_yr <= 2100 and ev_yr > end_year:
+                end_year = ev_yr
+        except Exception:
+            pass
+
+    total_written = 0
+    for yr in range(start_year, end_year + 1):
+        for mo in range(1, 13):
+            first_day = f"{yr:04d}-{mo:02d}-01"
+            if mo == 12:
+                next_month_first = datetime.date(yr + 1, 1, 1)
+            else:
+                next_month_first = datetime.date(yr, mo + 1, 1)
+            last_day = (next_month_first - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+            month_events = [
+                ev for ev in all_events
+                if ev["endDate"] >= first_day and ev["startDate"] <= last_day
+            ]
+            write_encrypted_month(yr, mo, month_events)
+            total_written += 1
+
+    print(f"Synced {len(all_events)} events from secret iCal URLs into {total_written} encrypted files.")
+    return True
+
+
 def sync_from_gas() -> bool:
     """Try syncing current and surrounding months directly from GAS via HTTP."""
     now = datetime.datetime.now(KST)
@@ -418,12 +475,14 @@ def download_ical_via_chrome(target_zip: str) -> bool:
 
 
 def auto_sync():
-    if sync_from_gas():
+    if sync_from_ical_urls():
+        print("Synced silently via secret iCal URLs.")
+    elif sync_from_gas():
         print("Synced latest months via GAS.")
     else:
         zip_path = "/tmp/ical_autosync.zip"
         if not download_ical_via_chrome(zip_path):
-            print("Failed to sync via GAS or Chrome.")
+            print("Failed to sync via iCal URLs, GAS, or Chrome.")
             return 1
         ev_count, file_count = build_monthly_files(zip_path)
         try:
