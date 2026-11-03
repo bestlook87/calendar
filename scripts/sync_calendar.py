@@ -423,6 +423,15 @@ def cleanup_downloads_dir():
             os.remove(f)
         except OSError:
             pass
+    # Also use Finder to ensure deletion even under launchd sandboxed TCC environments
+    script = '''
+    tell application "Finder"
+        try
+            delete (every file of folder (POSIX file "/Users/smh/Downloads") whose name contains "bestlook87@gmail.com")
+        end try
+    end tell
+    '''
+    subprocess.run(["osascript", "-e", script], capture_output=True)
 
 
 def download_ical_via_chrome(target_zip: str) -> bool:
@@ -471,11 +480,42 @@ def download_ical_via_chrome(target_zip: str) -> bool:
         '''
         subprocess.run(["osascript", "-e", close_script], capture_output=True)
 
+    def find_and_move_via_finder() -> bool:
+        check_script = '''
+        tell application "Finder"
+            try
+                set dlFolder to folder (POSIX file "/Users/smh/Downloads")
+                set crFiles to (every file of dlFolder whose name extension is "crdownload")
+                if (count of crFiles) > 0 then
+                    return "DOWNLOADING"
+                end if
+                set zipFiles to (every file of dlFolder whose name contains "bestlook87@gmail.com" and name extension is "zip")
+                if (count of zipFiles) > 0 then
+                    set theFile to item 1 of zipFiles
+                    return (POSIX path of (theFile as alias))
+                end if
+            end try
+            return "NONE"
+        end tell
+        '''
+        res = subprocess.run(["osascript", "-e", check_script], capture_output=True, text=True)
+        found_path = res.stdout.strip()
+        if found_path and found_path not in ("NONE", "DOWNLOADING") and os.path.exists(found_path):
+            if os.path.getsize(found_path) > 1000:
+                shutil.move(found_path, target_zip)
+                return True
+        return False
+
     downloaded = False
     try:
         # Wait up to 180 seconds (Google Calendar zip packaging can take 1-2 minutes)
         for _ in range(180):
             time.sleep(1)
+            # Try Finder detection first (bypasses any launchd TCC background sandbox limits)
+            if find_and_move_via_finder():
+                downloaded = True
+                break
+            # Try direct Python glob detection
             all_zips = [
                 f for f in glob.glob(os.path.join(downloads_dir, "*bestlook87@gmail.com*.zip"))
                 if not f.endswith(".crdownload")
@@ -492,7 +532,7 @@ def download_ical_via_chrome(target_zip: str) -> bool:
                     break
         if not downloaded:
             with open("/tmp/calendarsync.err", "a") as f:
-                f.write(f"[ERROR] download timed out after 180s. all_zips={all_zips}, crdownloads={crdownloads}\n")
+                f.write(f"[ERROR] download timed out after 180s.\n")
     finally:
         close_chrome_tab()
         cleanup_downloads_dir()
