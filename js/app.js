@@ -76,6 +76,22 @@ const App = {
     
     document.getElementById('saveMemoBtn').addEventListener('click', () => Modal.saveMemo());
     
+    // Month navigation buttons
+    const prevMonthBtn = document.getElementById('prevMonthBtn');
+    if (prevMonthBtn) {
+      prevMonthBtn.addEventListener('click', () => this.navigateMonth(-1));
+    }
+    const nextMonthBtn = document.getElementById('nextMonthBtn');
+    if (nextMonthBtn) {
+      nextMonthBtn.addEventListener('click', () => this.navigateMonth(1));
+    }
+    
+    // Browser history back/forward navigation
+    window.addEventListener('popstate', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      this.loadData(urlParams.get('month'));
+    });
+    
     // Keyboard
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -84,8 +100,38 @@ const App = {
         } else if (!document.getElementById('dayModalOverlay').classList.contains('hidden')) {
           Modal.closeDay();
         }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Only navigate if user is not typing in an input and no modal is open
+        const isInputFocused = document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
+        const isModalOpen = !document.getElementById('modalOverlay').classList.contains('hidden') ||
+                            !document.getElementById('dayModalOverlay').classList.contains('hidden');
+        if (!isInputFocused && !isModalOpen) {
+          this.navigateMonth(e.key === 'ArrowLeft' ? -1 : 1);
+        }
       }
     });
+  },
+  
+  navigateMonth(delta) {
+    let year = Calendar.currentYear || new Date().getFullYear();
+    let month = (Calendar.currentMonth || (new Date().getMonth() + 1)) + delta;
+    
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    } else if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+    
+    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+    
+    // Update URL query param cleanly without full page reload
+    const url = new URL(window.location);
+    url.searchParams.set('month', targetMonthStr);
+    window.history.pushState({}, '', url);
+    
+    this.loadData(targetMonthStr);
   },
   
   async loadData(monthParam) {
