@@ -447,17 +447,16 @@ def download_ical_via_chrome(target_zip: str) -> bool:
     start_time = time.time()
     was_chrome_running = is_chrome_running()
 
-    # Open Google Calendar export URL in Chrome and obtain the created tab/window ID
+    # Open Google Calendar export URL in Chrome
     open_script = '''
     tell application "Google Chrome"
         if (count of windows) is 0 then
             set w to make new window
-            set t to active tab of w
-            set URL of t to "https://calendar.google.com/calendar/u/0/exporticalzip"
-            return (id of w as string) & ":" & (id of t as string) & ":win"
+            set URL of active tab of w to "https://calendar.google.com/calendar/u/0/exporticalzip"
+            return "win"
         else
-            set t to make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
-            return (id of front window as string) & ":" & (id of t as string) & ":tab"
+            make new tab at end of tabs of front window with properties {URL:"https://calendar.google.com/calendar/u/0/exporticalzip"}
+            return "tab"
         end if
     end tell
     '''
@@ -465,12 +464,6 @@ def download_ical_via_chrome(target_zip: str) -> bool:
     if res.returncode != 0:
         with open("/tmp/calendarsync.err", "a") as f:
             f.write(f"[ERROR] open_script failed (rc={res.returncode}):\nSTDOUT: {res.stdout}\nSTDERR: {res.stderr}\n")
-        return False
-
-    info_parts = res.stdout.strip().split(":")
-    win_id = info_parts[0] if len(info_parts) > 0 else None
-    tab_id = info_parts[1] if len(info_parts) > 1 else None
-    kind = info_parts[2] if len(info_parts) > 2 else "tab"
 
     def close_or_quit_chrome():
         if not was_chrome_running:
@@ -484,18 +477,15 @@ def download_ical_via_chrome(target_zip: str) -> bool:
             '''
             subprocess.run(["osascript", "-e", quit_script], capture_output=True)
         else:
-            # 사용자가 이미 크롬을 사용 중이었다면 동기화용 탭/창만 닫기
-            if not win_id or not tab_id:
-                return
-            close_script = f'''
+            # 사용자가 이미 크롬을 사용 중이었다면 동기화용(exporticalzip) 탭만 닫기
+            close_script = '''
             tell application "Google Chrome"
-                try
-                    if "{kind}" is "win" then
-                        close (window id {win_id})
-                    else
-                        close (tab id {tab_id} of window id {win_id})
-                    end if
-                end try
+                repeat with i from (count of windows) to 1 by -1
+                    try
+                        set w to window i
+                        close (every tab of w whose URL contains "exporticalzip")
+                    end try
+                end repeat
             end tell
             '''
             subprocess.run(["osascript", "-e", close_script], capture_output=True)
