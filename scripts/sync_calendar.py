@@ -434,10 +434,18 @@ def cleanup_downloads_dir():
     subprocess.run(["osascript", "-e", script], capture_output=True)
 
 
+def is_chrome_running() -> bool:
+    """Check if Google Chrome is currently running."""
+    script = 'tell application "System Events" to return ((count of (every process whose name is "Google Chrome")) > 0)'
+    res = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    return res.stdout.strip().lower() == "true"
+
+
 def download_ical_via_chrome(target_zip: str) -> bool:
     cleanup_downloads_dir()
     downloads_dir = os.path.expanduser("~/Downloads")
     start_time = time.time()
+    was_chrome_running = is_chrome_running()
 
     # Open Google Calendar export URL in Chrome and obtain the created tab/window ID
     open_script = '''
@@ -464,21 +472,33 @@ def download_ical_via_chrome(target_zip: str) -> bool:
     tab_id = info_parts[1] if len(info_parts) > 1 else None
     kind = info_parts[2] if len(info_parts) > 2 else "tab"
 
-    def close_chrome_tab():
-        if not win_id or not tab_id:
-            return
-        close_script = f'''
-        tell application "Google Chrome"
-            try
-                if "{kind}" is "win" then
-                    close (window id {win_id})
-                else
-                    close (tab id {tab_id} of window id {win_id})
-                end if
-            end try
-        end tell
-        '''
-        subprocess.run(["osascript", "-e", close_script], capture_output=True)
+    def close_or_quit_chrome():
+        if not was_chrome_running:
+            # 동기화 시작 전 크롬이 꺼져 있었다면, 작업 완료 후 크롬 앱 자체를 완전히 종료(끄기)
+            quit_script = '''
+            tell application "Google Chrome"
+                try
+                    quit
+                end try
+            end tell
+            '''
+            subprocess.run(["osascript", "-e", quit_script], capture_output=True)
+        else:
+            # 사용자가 이미 크롬을 사용 중이었다면 동기화용 탭/창만 닫기
+            if not win_id or not tab_id:
+                return
+            close_script = f'''
+            tell application "Google Chrome"
+                try
+                    if "{kind}" is "win" then
+                        close (window id {win_id})
+                    else
+                        close (tab id {tab_id} of window id {win_id})
+                    end if
+                end try
+            end tell
+            '''
+            subprocess.run(["osascript", "-e", close_script], capture_output=True)
 
     def find_and_move_via_finder() -> bool:
         check_script = '''
@@ -534,7 +554,7 @@ def download_ical_via_chrome(target_zip: str) -> bool:
             with open("/tmp/calendarsync.err", "a") as f:
                 f.write(f"[ERROR] download timed out after 180s.\n")
     finally:
-        close_chrome_tab()
+        close_or_quit_chrome()
         cleanup_downloads_dir()
 
     return downloaded
