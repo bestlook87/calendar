@@ -551,13 +551,13 @@ def download_ical_via_chrome(target_zip: str) -> bool:
 
 
 def auto_sync():
-    cleanup_downloads_dir()
-    try:
-        if sync_from_ical_urls():
-            print("Synced silently via secret iCal URLs.")
-        elif sync_from_gas():
-            print("Synced latest months via GAS.")
-        else:
+    if sync_from_ical_urls():
+        print("Synced silently via secret iCal URLs.")
+    elif sync_from_gas():
+        print("Synced latest months via GAS.")
+    else:
+        cleanup_downloads_dir()
+        try:
             zip_path = "/tmp/ical_autosync.zip"
             if not download_ical_via_chrome(zip_path):
                 msg = "Failed to sync via iCal URLs, GAS, or Chrome."
@@ -571,28 +571,28 @@ def auto_sync():
             except OSError:
                 pass
             print(f"Synced {ev_count} events into {file_count} encrypted monthly files.")
+        finally:
+            cleanup_downloads_dir()
 
-        status = subprocess.run(
-            ["git", "status", "--porcelain", "data/"],
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "data/"],
+        cwd=REPO_DIR,
+        capture_output=True,
+        text=True,
+    )
+    if status.stdout.strip():
+        subprocess.run(["git", "add", "data/"], cwd=REPO_DIR, check=True)
+        now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+        subprocess.run(
+            ["git", "commit", "-m", f"chore: auto-sync encrypted calendar data ({now_str})"],
             cwd=REPO_DIR,
-            capture_output=True,
-            text=True,
+            check=True,
         )
-        if status.stdout.strip():
-            subprocess.run(["git", "add", "data/"], cwd=REPO_DIR, check=True)
-            now_str = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-            subprocess.run(
-                ["git", "commit", "-m", f"chore: auto-sync encrypted calendar data ({now_str})"],
-                cwd=REPO_DIR,
-                check=True,
-            )
-            subprocess.run(["git", "push", "origin", "main"], cwd=REPO_DIR, check=True)
-            print("Pushed updated encrypted calendar JSON files to GitHub.")
-        else:
-            print("No calendar changes to push.")
-        return 0
-    finally:
-        cleanup_downloads_dir()
+        subprocess.run(["git", "push", "origin", "main"], cwd=REPO_DIR, check=True)
+        print("Pushed updated encrypted calendar JSON files to GitHub.")
+    else:
+        print("No calendar changes to push.")
+    return 0
 
 
 if __name__ == "__main__":
